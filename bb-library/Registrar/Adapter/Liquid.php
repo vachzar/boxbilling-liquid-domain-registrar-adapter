@@ -125,8 +125,12 @@ class Registrar_Adapter_Liquid extends Registrar_AdapterAbstract
         $params = array(
             'domain_name'       =>  $domain->getName(),
         );
-        $result = $this->_makeRequest('domains/transfer/validity', $params, 'GET');
-        return (strtolower($result) == 'true');
+        $result = $this->_makeRequest('domains/transfer/validity', $params, 'POST');
+        if(!is_array($result))
+            return (strtolower($result) == 'true');
+        else{
+            return false;
+        }
     }
 
     public function modifyNs(Registrar_Domain $domain)
@@ -143,11 +147,12 @@ class Registrar_Adapter_Liquid extends Registrar_AdapterAbstract
 
         $params = array(
             'domain_id'  =>  $this->_getDomainOrderId($domain),
-            'ns'        =>  $ns,
+            'ns'        =>  implode(",", $ns),
         );
 
         $result = $this->_makeRequest('domains/'.$this->_getDomainOrderId($domain).'/ns', $params, 'PUT');
-        return ($result['status'] == 'Success');
+
+        return ($result == $ns);
     }
 
     public function modifyContact(Registrar_Domain $domain)
@@ -700,6 +705,16 @@ class Registrar_Adapter_Liquid extends Registrar_AdapterAbstract
             $opts[CURLOPT_POSTFIELDS]   = $this->_formatParams($params);
             $this->getLog()->debug('API REQUEST: '.$opts[CURLOPT_URL].'?'.$opts[CURLOPT_POSTFIELDS]);
         } else {
+            if($method == 'PATCH'){
+                $opts[CURLOPT_CUSTOMREQUEST]    = "PATCH";
+                $opts[CURLOPT_POSTFIELDS]       = $params;
+            }elseif ($method == 'PUT') {
+                $opts[CURLOPT_CUSTOMREQUEST]    = "PUT";
+                $opts[CURLOPT_POSTFIELDS]       = $this->_formatParams($params);
+            }elseif ($method == 'DELETE') {
+                $opts[CURLOPT_CUSTOMREQUEST]    = "DELETE";
+                $opts[CURLOPT_POSTFIELDS]       = $this->_formatParams($params);
+            }
             $opts[CURLOPT_URL]  = $opts[CURLOPT_URL].'?'.$this->_formatParams($params);
             $this->getLog()->debug('API REQUEST: '.$opts[CURLOPT_URL]);
         }
