@@ -106,11 +106,7 @@ class Registrar_Adapter_Liquid extends Registrar_AdapterAbstract
     public function isDomainAvailable(Registrar_Domain $domain)
     {
         $params = array(
-            'domain'                => $domain->getName(),
-            'domain-name'           =>  $domain->getSld(),
-            'tlds'                  =>  array($domain->getTld(false)),
-            'suggest-alternative'   =>  false,
-        );
+            'domain'                => $domain->getName()
 
         $result = $this->_makeRequest('domains/availability', $params);
       
@@ -158,40 +154,41 @@ class Registrar_Adapter_Liquid extends Registrar_AdapterAbstract
     public function modifyContact(Registrar_Domain $domain)
     {
         $customer = $this->_getCustomerDetails($domain);
-        $cdetails = $this->_getDefaultContactDetails($domain, $customer['customerid']);
-        $contact_id = $cdetails['Contact']['registrant'];
+        $cdetails = $this->_getDefaultContactDetails($domain, $customer['customer_id']);
+        $contact_id = $cdetails['registrant_contact'];
 
         $c = $domain->getContactRegistrar();
         
         $required_params = array(
-            'contact-id'        =>  $contact_id,
+            'customer_id'       => $customer['customer_id'],
+            'contact_id'        =>  $contact_id,
             'name'              =>  $c->getName(),
             'company'           =>  $c->getCompany(),
             'email'             =>  $c->getEmail(),
-            'address-line-1'    =>  $c->getAddress1(),
+            'address_line_1'    =>  $c->getAddress1(),
             'city'              =>  $c->getCity(),
             'zipcode'           =>  $c->getZip(),
-            'phone-cc'          =>  $c->getTelCc(),
-            'phone'             =>  $c->getTel(),
-            'country'           =>  $c->getCountry(),
+            'tel_cc_no'         =>  $c->getTelCc(),
+            'tel_no'            =>  $c->getTel(),
+            'country_code'      =>  $c->getCountry(),
         );
 
         $optional_params = array(
-            'address-line-2'    =>  $c->getAddress2(),
-            'address-line-3'    =>  $c->getAddress3(),
+            'address_line_2'    =>  $c->getAddress2(),
+            'address_line_3'    =>  $c->getAddress3(),
             'state'             =>  $c->getState(),
         );
 
         $params = array_merge($optional_params, $required_params);
-        $result = $this->_makeRequest('contacts/modify', $params, 'POST');
+        $result = $this->_makeRequest("customers/{$customer['customerid']}/contacts/contact_id", $params, 'PUT');
         return ($result['status'] == 'Success');
     }
 
     public function transferDomain(Registrar_Domain $domain)
     {
         $customer = $this->_getCustomerDetails($domain);
-        $contacts = $this->_getDefaultContactDetails($domain, $customer['customerid']);
-        $contact_id = $contacts['Contact']['registrant'];
+        $contacts = $this->_getDefaultContactDetails($domain, $customer['customer_id']);
+        $contact_id = $contacts['registrant_contact'];
 
         $ns = array();
         $ns[] = $domain->getNs1();
@@ -204,21 +201,26 @@ class Registrar_Adapter_Liquid extends Registrar_AdapterAbstract
         }
 
         $required_params = array(
-            'domain-name'       =>  $domain->getName(),
-            'auth-code'         =>  $domain->getEpp(),
-            'ns'                =>  $ns,
-            'customer-id'       =>  $customer['customerid'],
-            'reg-contact-id'    =>  $contact_id,
-            'admin-contact-id'  =>  $contact_id,
-            'tech-contact-id'   =>  $contact_id,
-            'billing-contact-id'=>  $contact_id,
-            'invoice-option'    =>  'NoInvoice',
-            'protect-privacy'   =>  false,
+            'domain_name'           =>  $domain->getName(),
+            'auth_code'             =>  $domain->getEpp(),
+            'ns'                    =>  implode(',',$ns),
+            'customer_id'           =>  $customer['customer_id'],
+            'registrant_contact_id' =>  $contact_id,
+            'admin_contact_id'  =>  $contact_id,
+            'tech_contact_id'   =>  $contact_id,
+            'billing_contact_id'=>  $contact_id,
+            'invoice_option'    =>  'no_invoice',
+            //'protect-privacy'   =>  false,
         );
 
-        if($domain->getTld() == '.asia') {
-            $required_params['attr-name1'] = 'cedcontactid';
-            $required_params['attr-value1'] = "default";
+        if(in_array($domain->getTld(), ['.EU', '.NZ', '.RU' , '.UK' ]) {
+            $required_params['admin_contact_id'] = -1;
+        }
+        if(in_array($domain->getTld(), ['.EU',  '.AT', '.BERLIN', '.CA', '.NL', '.NZ', '.RU' , '.UK' ]) {
+            $required_params['billing_contact_id'] = -1;
+        }
+        if(in_array($domain->getTld(), ['.EU', '.NZ', '.RU' , '.UK' ]) {
+            $required_params['tech_contact_id'] = -1;
         }
 
         return $this->_makeRequest('domains/transfer', $required_params, 'POST');
@@ -236,41 +238,41 @@ class Registrar_Adapter_Liquid extends Registrar_AdapterAbstract
         return $data['domain_id'];
     }
 
-    public function getDomainDetails(Registrar_Domain $d)
+    public function getDomainDetails(Registrar_Domain $d) //ok
     {
         $orderid = $this->_getDomainOrderId($d);
         $params = array(
-            'order-id'      =>  $orderid,
-            'options'       =>  'All',
+            'domain_id'      =>  $orderid,
+            'fields'       =>  'All',
         );
-        $data = $this->_makeRequest('domains/details', $params);
+        $data = $this->_makeRequest("domains/$orderid", $params);
         
-        $d->setRegistrationTime($data['creationtime']);
-        $d->setExpirationTime($data['endtime']);
-        $d->setEpp($data['domsecret']);
-        $d->setPrivacyEnabled(($data['isprivacyprotected'] == 'true'));
+        $d->setRegistrationTime($data['creation_time']);
+        $d->setExpirationTime($data['expiry_date']);
+        $d->setEpp($this->getEpp($d));
+        $d->setPrivacyEnabled(($data['privacy_protection_enabled'] == 'true'));
         
         /* Contact details */
-        $wc = $data['admincontact'];
+        $wc = $data['adm_contact'];
         $c = new Registrar_Domain_Contact();
-        $c->setId($wc['contactid'])
+        $c->setId($wc['contact_id'])
             ->setName($wc['name'])
-            ->setEmail($wc['emailaddr'])
+            ->setEmail($wc['email'])
             ->setCompany($wc['company'])
-            ->setTel($wc['telno'])
-            ->setTelCc($wc['telnocc'])
-            ->setAddress1($wc['address1'])
+            ->setTel($wc['tel_no'])
+            ->setTelCc($wc['tel_no_cc'])
+            ->setAddress1($wc['address_line_1'])
             ->setCity($wc['city'])
             ->setCountry($wc['country'])
             ->setState($wc['state'])
             ->setZip($wc['zip']);
         
-        if(isset($wc['address2'])) {
-            $c->setAddress2($wc['address2']);
+        if(isset($wc['address_line_2'])) {
+            $c->setAddress2($wc['address_line_2']);
         }
 
-        if(isset($wc['address3'])) {
-            $c->setAddress3($wc['address3']);
+        if(isset($wc['address_line_3'])) {
+            $c->setAddress3($wc['address_line_3']);
         }
 
         $d->setContactRegistrar($c);
@@ -294,7 +296,7 @@ class Registrar_Adapter_Liquid extends Registrar_AdapterAbstract
     public function deleteDomain(Registrar_Domain $domain)
     {
         $required_params = array(
-            'order-id'  =>  $this->_getDomainOrderId($domain),
+            'domain_id'  =>  $this->_getDomainOrderId($domain),
         );
         $result = $this->_makeRequest('domains/delete', $required_params, 'POST');
         return (strtolower($result['status']) == 'success');
@@ -308,7 +310,7 @@ class Registrar_Adapter_Liquid extends Registrar_AdapterAbstract
         
         $tld = $domain->getTld();
         $customer = $this->_getCustomerDetails($domain);
-        $customer_id = $customer['customerid'];
+        $customer_id = $customer['customer_id'];
         
         $ns = array();
         $ns[] = $domain->getNs1();
@@ -325,39 +327,27 @@ class Registrar_Adapter_Liquid extends Registrar_AdapterAbstract
         $params = array(
             'domain_name'       =>  $domain->getName(),
             'years'             =>  $domain->getRegistrationPeriod(),
-            'ns'                =>  $ns,
+            'ns'                =>  implode(',', $ns),
             'customer_id'       =>  $customer_id,
             'registrant_contact_id'    =>  $reg_contact_id,
             'admin_contact_id'  =>  $admin_contact_id,
             'tech_contact_id'   =>  $tech_contact_id,
             'billing_contact_id'=>  $billing_contact_id,
-            'invoice_option'    =>  'NoInvoice',
-            'privacy_protection_enabled'   =>  false,
+            'invoice_option'    =>  'no_invoice',
         );
 
         if($tld == '.asia') {
-            $params['attr-name1'] = 'cedcontactid';
-            $params['attr-value1'] = "default";
+            $params['extra'] = 'asia_contact_id=0';
         }
 
-        if($tld == '.de') {
-            $params['ns'] = array('dns1.directi.com', 'dns2.directi.com', 'dns3.directi.com', 'dns4.directi.com');
+        if(in_array($tld, ['.EU', '.NZ', '.RU' , '.UK' ]) {
+            $params['admin_contact_id'] = -1;
         }
-
-        if ($tld == '.au' || $tld == '.net.au' || $tld == '.com.au'){
-            $contact = $domain->getContactRegistrar();
-
-            if(strlen(trim($contact->getCompanyNumber())) == 0 ) {
-                throw new Registrar_Exception('Valid contact company number is required while registering AU domain name');
-            }
-            $params['attr-name1'] = 'id-type';
-            $params['attr-value1'] = 'ACN';
-            $params['attr-name2'] = 'id';
-            $params['attr-value2'] = $contact->getCompanyNumber();
-            $params['attr-name3'] = 'policyReason';
-            $params['attr-value3'] = '1';
-            $params['attr-name4'] = 'isAUWarranty';
-            $params['attr-value4'] = '1';
+        if(in_array($tld, ['.EU',  '.AT', '.BERLIN', '.CA', '.NL', '.NZ', '.RU' , '.UK' ]) {
+            $params['billing_contact_id'] = -1;
+        }
+        if(in_array($tld, ['.EU', '.NZ', '.RU' , '.UK' ]) {
+            $params['tech_contact_id'] = -1;
         }
         
         $result = $this->_makeRequest('domains', $params, 'POST');
@@ -370,7 +360,7 @@ class Registrar_Adapter_Liquid extends Registrar_AdapterAbstract
             'domain_id'          =>  $this->_getDomainOrderId($domain),
             'years'             =>  $domain->getRegistrationPeriod(),
             'current_date'          =>  $domain->getExpirationTime(),
-            'invoice-option'    =>  'NoInvoice',
+            'invoice_option'    =>  'no_invoice',
         );
 
         $result = $this->_makeRequest('domains/'.$params['domain_id'].'/renew', $params, 'POST');
@@ -381,26 +371,22 @@ class Registrar_Adapter_Liquid extends Registrar_AdapterAbstract
     {
         $order_id = $this->_getDomainOrderId($domain);
         $params = array(
-            'order-id'        =>  $order_id,
-            'protect-privacy' =>  true,
-            'reason'          =>  'Owners decision',
+            'domain_id'        =>  $order_id,
         );
 
-        $result = $this->_makeRequest('domains/modify-privacy-protection', $params, 'POST');
-        return (strtolower($result['actionstatus']) == 'success');
+        $result = $this->_makeRequest("domains/$order_id/privacy_protection", $params, 'PUT');
+        return (strtolower($result['privacy_protection_enabled']) == 'true');
     }
 
     public function disablePrivacyProtection(Registrar_Domain $domain)
     {
         $order_id = $this->_getDomainOrderId($domain);
         $params = array(
-            'order-id'        =>  $order_id,
-            'protect-privacy' =>  false,
-            'reason'          =>  'Owners decision',
+            'domain_id'        =>  $order_id,
         );
 
-        $result = $this->_makeRequest('domains/modify-privacy-protection', $params, 'POST');
-        return (strtolower($result['actionstatus']) == 'success');
+        $result = $this->_makeRequest("domains/$order_id/privacy_protection", $params, 'DELETE');
+        return (strtolower($result['privacy_protection_enabled']) == 'false');
     }
 
     public function getEpp(Registrar_Domain $domain)
@@ -421,7 +407,7 @@ class Registrar_Adapter_Liquid extends Registrar_AdapterAbstract
             'domain_id'        =>  $this->_getDomainOrderId($domain),
         );
         $result = $this->_makeRequest('domains/'.$params['domain_id'].'/locked', $params, 'PUT');
-        return (strtolower($result['status']) == 'success');
+        return (strtolower($result['locked']) == 'true');
     }
 
     public function unlock(Registrar_Domain $domain)
@@ -430,24 +416,34 @@ class Registrar_Adapter_Liquid extends Registrar_AdapterAbstract
             'domain_id'        =>  $this->_getDomainOrderId($domain),
         );
         $result = $this->_makeRequest('domains/'.$params['domain_id'].'/locked', $params, 'DELETE');
-        return (strtolower($result['status']) == 'success');
+        return (strtolower($result['locked']) == 'false');
     }
     
     private function _getCustomerDetails(Registrar_Domain $domain)
     {
-        $c = $domain->getContactRegistrar();
+        //$c = $domain->getContactRegistrar();
+        $c = $this->getDomainDetails($d);
+        $username =  $c->getEmail();
         $params = array(
-            'username'       =>  $c->getEmail(),
+            'email'         => $username, 
+            'limit' => 10, 
+            'page_no'       => 1
         );
 
         try {
-            $result = $this->_makeRequest('customers/details', $params);
+            $result = $this->_makeRequest('customers', $params);
         } catch(Registrar_Exception $e) {
             $this->_createCustomer($domain);
-            $result = $this->_makeRequest('customers/details', $params);
+            $result = $this->_makeRequest('customers', $params);
         }
-
-        return (array)$result;
+        if (!empty( $result[0]["customer_id"])) {
+            foreach ($result as $v) {
+                if ($v["email"] == $username) {
+                    return (array)$v;
+                }
+            }
+        }
+        return array();
     }
 
     private function _createCustomer(Registrar_Domain $domain)
@@ -499,54 +495,26 @@ class Registrar_Adapter_Liquid extends Registrar_AdapterAbstract
     {
         $c = $domain->getContactRegistrar();
         $customer = $this->_getCustomerDetails($domain);
-        $customer_id = $customer['customerid'];
+        $customer_id = $customer['customer_id'];
         
         $tld = $domain->getTld();
         $contact = array(
-            'customer-id'                    =>  $customer_id,
-            'type'                           =>  'Contact',
+            'customer_id'                    =>  $customer_id,
             'email'                          =>  $c->getEmail(),
             'name'                           =>  $c->getName(),
             'company'                        =>  $c->getCompany(),
-            'address-line-1'                 =>  $c->getAddress1(),
-            'address-line-2'                 =>  $c->getAddress2(),
+            'address_line_1'                 =>  $c->getAddress1(),
+            'address_line_2'                 =>  $c->getAddress2(),
             'city'                           =>  $c->getCity(),
             'state'                          =>  $c->getState(),
             'country'                        =>  $c->getCountry(),
             'zipcode'                        =>  $c->getZip(),
-            'phone-cc'                       =>  $c->getTelCc(),
-            'phone'                          =>  $c->getTel(),
+            'tel_cc_no'                       =>  $c->getTelCc(),
+            'tel_cc'                          =>  $c->getTel(),
+            'country_code'                  => 'id',
         );        
 
-        if($tld == '.uk') {
-            $contact['type'] =   'UkContact';
-        }
-        
-        if($tld == '.eu') {
-            $contact['type'] =   'EuContact';
-        }
-        
-        if($tld == '.cn') {
-            $contact['type'] =   'CnContact';
-        }
-        
-        if($tld == '.ca') {
-            $contact['type'] =   'CaContact';
-        }
-        
-        if($tld == '.de') {
-            $contact['type'] =   'DeContact';
-        }
-        
-        if($tld == '.es') {
-            $contact['type'] =   'EsContact';
-        }
-        
-        if($tld == '.ru') {
-            $contact['type'] =   'RuContact';
-        }
-
-        $id = $this->_makeRequest('contacts/add', $contact, 'POST');
+        $id = $this->_makeRequest("contacts/$customer_id/contacts", $contact, 'POST');
         return $id;
     }
     
@@ -612,20 +580,19 @@ class Registrar_Adapter_Liquid extends Registrar_AdapterAbstract
     private function _getDefaultContactDetails(Registrar_Domain $domain, $customerid)
     {
         $params = array(
-            'customer-id'   =>  $customerid,
-            'type'          =>  'Contact',
+            'customer_id'   =>  $customerid
         );
 
-        return $this->_makeRequest('contacts/default', $params, 'POST');
+        return $this->_makeRequest("customers/$customerid/contacts/default", $params, 'GET');
     }
 
     private function removeCustomer($params)
     {
         $required_params = array(
-            'customer-id'   =>  '',
+            'customer_id'   =>  '',
         );
         $params = $this->_checkRequiredParams($required_params, $params);
-        $result = $this->_makeRequest('customers/delete', $params, 'POST');
+        $result = $this->_makeRequest('customers/'.$params['customer_id'], $params, 'DELETE');
         return ($result == 'true');
     }
     
@@ -634,7 +601,7 @@ class Registrar_Adapter_Liquid extends Registrar_AdapterAbstract
         try {
             $orderid = $this->_getDomainOrderId($domain);
             $params = array(
-                'order-id'      =>  $orderid,
+                'order_id'      =>  $orderid,
                 'options'       =>  'All',
             );
             $data = $this->_makeRequest('domains/details', $params);
@@ -992,9 +959,9 @@ class Registrar_Adapter_Liquid extends Registrar_AdapterAbstract
     {
         try {
             $params = array(
-                'customer-id'   => $customer_id,
-                'no-of-records' => 20,
-                'page-no'       => 1,
+                'customer_id'   => $customer_id,
+                'limit' => 20,
+                'page_no'       => 1,
                 'status'        => 'Active',
                 'type'          => $type,
             );
@@ -1003,7 +970,7 @@ class Registrar_Adapter_Liquid extends Registrar_AdapterAbstract
                 throw new Registrar_Exception('Contact not found');
             }
             $existing_contact_id = $result['result'][0]['entity.entityid'];
-            $this->_makeRequest('contacts/delete', array('contact-id'=>$existing_contact_id), 'POST');
+            $this->_makeRequest('contacts/delete', array('contact_id'=>$existing_contact_id), 'POST');
         } catch(Registrar_Exception $e) {
             $this->getLog()->info($e->getMessage());
         }
