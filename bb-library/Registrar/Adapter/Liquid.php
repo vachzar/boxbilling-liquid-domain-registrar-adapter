@@ -107,7 +107,7 @@ class Registrar_Adapter_Liquid extends Registrar_AdapterAbstract
     {
         $params = array(
             'domain'                => $domain->getName()
-
+        );
         $result = $this->_makeRequest('domains/availability', $params);
       
         if(isset($result[0][$params['domain']]['status']) && $result[0][$params['domain']]['status'] == 'available') {
@@ -213,13 +213,13 @@ class Registrar_Adapter_Liquid extends Registrar_AdapterAbstract
             //'protect-privacy'   =>  false,
         );
 
-        if(in_array($domain->getTld(), ['.EU', '.NZ', '.RU' , '.UK' ]) {
+        if(in_array($domain->getTld(), ['.EU', '.NZ', '.RU' , '.UK' ])) {
             $required_params['admin_contact_id'] = -1;
         }
-        if(in_array($domain->getTld(), ['.EU',  '.AT', '.BERLIN', '.CA', '.NL', '.NZ', '.RU' , '.UK' ]) {
+        if(in_array($domain->getTld(), ['.EU',  '.AT', '.BERLIN', '.CA', '.NL', '.NZ', '.RU' , '.UK' ])) {
             $required_params['billing_contact_id'] = -1;
         }
-        if(in_array($domain->getTld(), ['.EU', '.NZ', '.RU' , '.UK' ]) {
+        if(in_array($domain->getTld(), ['.EU', '.NZ', '.RU' , '.UK' ])) {
             $required_params['tech_contact_id'] = -1;
         }
 
@@ -260,12 +260,12 @@ class Registrar_Adapter_Liquid extends Registrar_AdapterAbstract
             ->setEmail($wc['email'])
             ->setCompany($wc['company'])
             ->setTel($wc['tel_no'])
-            ->setTelCc($wc['tel_no_cc'])
+            ->setTelCc($wc['tel_cc_no'])
             ->setAddress1($wc['address_line_1'])
             ->setCity($wc['city'])
             ->setCountry($wc['country'])
             ->setState($wc['state'])
-            ->setZip($wc['zip']);
+            ->setZip($wc['zipcode']);
         
         if(isset($wc['address_line_2'])) {
             $c->setAddress2($wc['address_line_2']);
@@ -340,13 +340,13 @@ class Registrar_Adapter_Liquid extends Registrar_AdapterAbstract
             $params['extra'] = 'asia_contact_id=0';
         }
 
-        if(in_array($tld, ['.EU', '.NZ', '.RU' , '.UK' ]) {
+        if(in_array($tld, ['.EU', '.NZ', '.RU' , '.UK' ])) {
             $params['admin_contact_id'] = -1;
         }
-        if(in_array($tld, ['.EU',  '.AT', '.BERLIN', '.CA', '.NL', '.NZ', '.RU' , '.UK' ]) {
+        if(in_array($tld, ['.EU',  '.AT', '.BERLIN', '.CA', '.NL', '.NZ', '.RU' , '.UK' ])) {
             $params['billing_contact_id'] = -1;
         }
-        if(in_array($tld, ['.EU', '.NZ', '.RU' , '.UK' ]) {
+        if(in_array($tld, ['.EU', '.NZ', '.RU' , '.UK' ])) {
             $params['tech_contact_id'] = -1;
         }
         
@@ -359,12 +359,14 @@ class Registrar_Adapter_Liquid extends Registrar_AdapterAbstract
         $params = array(
             'domain_id'          =>  $this->_getDomainOrderId($domain),
             'years'             =>  $domain->getRegistrationPeriod(),
-            'current_date'          =>  $domain->getExpirationTime(),
+            'current_date'          =>  date('Y-m-d', $domain->getExpirationTime()),//$domain->getExpirationTime(),
             'invoice_option'    =>  'no_invoice',
         );
-
         $result = $this->_makeRequest('domains/'.$params['domain_id'].'/renew', $params, 'POST');
-        return ($result['actionstatus'] == 'Success');
+        if(isset($result['transaction_id']))
+            return true;
+        return false;
+        //return ($result['actionstatus'] == 'Success');
     }
 
     public function enablePrivacyProtection(Registrar_Domain $domain)
@@ -769,12 +771,12 @@ class Registrar_Adapter_Liquid extends Registrar_AdapterAbstract
         }
 
         $contact = array(
-            'customer-id'                    =>  $customer_id,
+            'customer_id'                    =>  $customer_id,
             'type'                           =>  'Contact',
             'email'                          =>  $client->getEmail(),
             'name'                           =>  $client->getFirstName() . ' ' . $client->getLastName(),
             'company'                        =>  $company,
-            'address-line-1'                 =>  $client->getAddress1(),
+            'address_line_1'                 =>  $client->getAddress1(),
             'city'                           =>  $client->getCity(),
             'state'                          =>  $client->getState(),
             'country'                        =>  $client->getCountry(),
