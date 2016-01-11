@@ -322,8 +322,12 @@ class Registrar_Adapter_Liquid extends Registrar_AdapterAbstract
             $ns[] = $domain->getNs4();
         }
 
-        list($reg_contact_id, $admin_contact_id, $tech_contact_id, $billing_contact_id) = $this->_getAllContacts($tld, $customer_id, $domain->getContactRegistrar());
-
+        //list($reg_contact_id, $admin_contact_id, $tech_contact_id, $billing_contact_id) = $this->_getAllContacts($tld, $customer_id, $domain->getContactRegistrar());
+        $contacts = $this->_getDefaultContactDetails($domain, $customer_id);
+        $reg_contact_id = $contacts['registrant_contact']['contact_id'];
+        $admin_contact_id = $contacts['admin_contact']['contact_id'];
+        $tech_contact_id = $contacts['tech_contact']['contact_id'];
+        $billing_contact_id = $contacts['billing_contact']['contact_id'];
         $params = array(
             'domain_name'       =>  $domain->getName(),
             'years'             =>  $domain->getRegistrationPeriod(),
@@ -611,7 +615,7 @@ class Registrar_Adapter_Liquid extends Registrar_AdapterAbstract
             return false;
         }
         
-        return ($data['currentstatus'] == 'Active');
+        return ($data['order_status'] == 'live');
     }
     
     public function isTestEnv()
