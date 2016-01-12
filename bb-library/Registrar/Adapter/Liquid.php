@@ -304,9 +304,9 @@ class Registrar_Adapter_Liquid extends Registrar_AdapterAbstract
 
     public function registerDomain(Registrar_Domain $domain)
     {
-        if($this->_hasCompletedOrder($domain)) {
-            return true;
-        }
+        //if($this->_hasCompletedOrder($domain)) {
+        //    return true;
+        //}
         
         $tld = $domain->getTld();
         $customer = $this->_getCustomerDetails($domain);
@@ -428,7 +428,7 @@ class Registrar_Adapter_Liquid extends Registrar_AdapterAbstract
     private function _getCustomerDetails(Registrar_Domain $domain)
     {
         //$c = $domain->getContactRegistrar();
-        $c = $this->getDomainDetails($d);
+        $c = $c = $domain->getContactRegistrar(); //$this->getDomainDetails($domain);
         $username =  $c->getEmail();
         $params = array(
             'email'         => $username, 
